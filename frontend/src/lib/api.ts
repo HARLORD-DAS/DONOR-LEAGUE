@@ -1,4 +1,15 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
+function getApiBase(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  // On deployed domains (HTTPS or non-localhost), use relative path to route through Vercel
+  if (typeof window !== "undefined") {
+    if (window.location.protocol === "https:" || (!window.location.hostname.includes("localhost") && window.location.hostname !== "127.0.0.1")) {
+      return "/api/v1";
+    }
+  }
+  return "http://127.0.0.1:8000/api/v1";
+}
 
 export async function apiRequest<T = any>(
   endpoint: string,
@@ -14,7 +25,9 @@ export async function apiRequest<T = any>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const url = `${API_BASE}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+  const base = getApiBase();
+  const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const url = `${base}${cleanEndpoint}`;
   const res = await fetch(url, {
     ...options,
     headers,
