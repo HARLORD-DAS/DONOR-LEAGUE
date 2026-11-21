@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/lib/api";
 import { Success3D, Call3D, Hospital3D, BloodDrop3D } from "@/components/Icons3D";
 import dynamic from "next/dynamic";
@@ -10,9 +11,24 @@ const InteractiveMap = dynamic(() => import("@/components/Map"), { ssr: false })
 
 export default function ConnectedDonorsPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [connections, setConnections] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeHospitalMap, setActiveHospitalMap] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push("/login");
+      } else if (user.role === "pending") {
+        router.push("/select-role");
+      } else if (user.role === "donor") {
+        router.push("/donor/dashboard");
+      } else if (user.role === "attendant" && !user.profile_completed) {
+        router.push("/register/attendant");
+      }
+    }
+  }, [user, authLoading, router]);
 
   useEffect(() => {
     async function loadConnections() {
@@ -26,8 +42,10 @@ export default function ConnectedDonorsPage() {
         setLoading(false);
       }
     }
-    loadConnections();
-  }, []);
+    if (user && user.role === "attendant" && user.profile_completed) {
+      loadConnections();
+    }
+  }, [user]);
 
   if (loading) {
     return <div className="p-12 text-center text-sm font-medium">Loading connected donors...</div>;

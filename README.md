@@ -132,7 +132,31 @@ npm run dev
 
 ---
 
-## 5. Seed Accounts for Quick Testing
+## 5. Application Entry Flow & Role-Based Lifecycle
+
+The redesigned entry architecture requires authentication before accessing role selection:
+
+1. **First-Time User Flow**:
+   - `Landing Page (/)` &rarr; `Sign Up (/signup)`: User enters Full Name, Mobile, Email, and Password. Account is created in `pending` state.
+   - User is automatically authenticated &rarr; `Role Selection (/select-role)`: User selects between **DONOR** and **ATTENDER** via large interactive 3D cards. Role is permanently saved in the database.
+   - Redirected to the corresponding registration form:
+     - `/register/donor`: Prefilled with verified account details, collects blood group, DOB, and OSM location.
+     - `/register/attendant`: Prefilled with verified account details, collects location city/state.
+   - Profile completed &rarr; User is redirected to their dedicated dashboard (`/donor/dashboard` or `/attendant/dashboard`).
+
+2. **Existing User Flow**:
+   - `Landing Page (/)` &rarr; `Sign In (/login)`: User logs in using registered email or mobile number + password.
+   - Backend automatically identifies user role and profile completion status:
+     - `pending` role &rarr; `/select-role`
+     - `donor` role with incomplete profile &rarr; `/register/donor`
+     - `attendant` role with incomplete profile &rarr; `/register/attendant`
+     - `donor` role with completed profile &rarr; `/donor/dashboard`
+     - `attendant` role with completed profile &rarr; `/attendant/dashboard`
+   - Users who have already selected their role are never asked to choose again.
+
+---
+
+## 6. Seed Accounts for Quick Testing
 
 | Role | Name | Email | Password | Details |
 | :--- | :--- | :--- | :--- | :--- |
@@ -141,4 +165,46 @@ npm run dev
 | **Donor** | Karthik Nair | `karthik.donor@donorleague.org` | `DonorPass@123` | Blood Group: **B+**, Shivajinagar, Available |
 | **Attendant** | Deepak Joshi | `attendant@donorleague.org` | `AttendantPass@123` | Registered Attendant, Bangalore |
 
-Both roles can also be registered net-new from the respective registration pages (`/register/donor` and `/register/attendant`).
+Both roles can also be created net-new via the new authentication and role selection workflow (`/signup` &rarr; `/select-role`).
+
+---
+
+## 7. Deployment Instructions
+
+### Deploying the Frontend to Vercel
+
+The frontend is a modern Next.js 14 application located in the `frontend/` directory.
+
+#### Method 1: Git Integration (Recommended)
+1. Push this repository to GitHub (e.g. `https://github.com/HARLORD-DAS/DONOR-LEAGUE`).
+2. Log in to [Vercel](https://vercel.com) and click **"Add New Project"** &rarr; **"Import Git Repository"**.
+3. Select `DONOR-LEAGUE`.
+4. In the **Configure Project** screen:
+   - **Framework Preset**: Next.js (auto-detected).
+   - **Root Directory**: Click **Edit** and set it to `frontend`.
+   - **Build Command**: `npm run build` (or `next build`).
+   - **Output Directory**: `.next`.
+   - **Environment Variables**:
+     - `NEXT_PUBLIC_API_URL`: URL of your deployed FastAPI backend (e.g., `https://donor-league-api.onrender.com/api/v1`).
+5. Click **Deploy**. Vercel will build and deploy the Next.js application to a high-speed global edge network.
+
+#### Method 2: Vercel CLI
+If deploying from your terminal:
+```bash
+cd frontend
+npx vercel
+```
+Follow the interactive prompts:
+- Link to existing project? **No**
+- What's your project's name? **donor-league-frontend**
+- In which directory is your code located? `./`
+- Want to modify settings? **No**
+
+### Deploying the Backend
+The backend is a FastAPI application with async SQLite / PostgreSQL and WebSockets for real-time donor tracking:
+- Deploy to platforms that support continuous Python services and WebSockets, such as **Render**, **Railway**, or **Fly.io**.
+- In the platform's service settings:
+  - **Build Command**: `pip install -r backend/requirements.txt`
+  - **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+  - Set the resulting backend URL as `NEXT_PUBLIC_API_URL` in the Vercel project settings.
+

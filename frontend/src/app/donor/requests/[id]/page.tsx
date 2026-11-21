@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/lib/api";
 import { Hospital3D, BloodDrop3D, Call3D } from "@/components/Icons3D";
 import dynamic from "next/dynamic";
@@ -11,12 +12,27 @@ const InteractiveMap = dynamic(() => import("@/components/Map"), { ssr: false })
 export default function DonorRequestDetailsPage() {
   const params = useParams();
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const requestId = params.id as string;
 
   const [requestData, setRequestData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push("/login");
+      } else if (user.role === "pending") {
+        router.push("/select-role");
+      } else if (user.role === "attendant") {
+        router.push("/attendant/dashboard");
+      } else if (user.role === "donor" && !user.profile_completed) {
+        router.push("/register/donor");
+      }
+    }
+  }, [user, authLoading, router]);
 
   useEffect(() => {
     async function loadRequest() {
@@ -30,8 +46,10 @@ export default function DonorRequestDetailsPage() {
         setLoading(false);
       }
     }
-    if (requestId) loadRequest();
-  }, [requestId]);
+    if (requestId && user && user.role === "donor" && user.profile_completed) {
+      loadRequest();
+    }
+  }, [requestId, user]);
 
   const handleRespond = async (action: "ACCEPTED" | "DECLINED") => {
     try {

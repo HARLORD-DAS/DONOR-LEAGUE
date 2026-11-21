@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/lib/api";
 import { Success3D, Call3D, Hospital3D, BloodDrop3D } from "@/components/Icons3D";
 import dynamic from "next/dynamic";
@@ -10,9 +11,24 @@ const InteractiveMap = dynamic(() => import("@/components/Map"), { ssr: false })
 
 export default function DonorAcceptedConfirmationPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [latestConnection, setLatestConnection] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showMap, setShowMap] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push("/login");
+      } else if (user.role === "pending") {
+        router.push("/select-role");
+      } else if (user.role === "attendant") {
+        router.push("/attendant/dashboard");
+      } else if (user.role === "donor" && !user.profile_completed) {
+        router.push("/register/donor");
+      }
+    }
+  }, [user, authLoading, router]);
 
   useEffect(() => {
     async function fetchAccepted() {
@@ -28,8 +44,10 @@ export default function DonorAcceptedConfirmationPage() {
         setLoading(false);
       }
     }
-    fetchAccepted();
-  }, []);
+    if (user && user.role === "donor" && user.profile_completed) {
+      fetchAccepted();
+    }
+  }, [user]);
 
   if (loading) {
     return <div className="p-12 text-center text-sm font-medium">Loading acceptance confirmation...</div>;

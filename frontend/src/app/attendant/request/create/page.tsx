@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/lib/api";
 import { Hospital3D, BloodDrop3D, MapPin3D } from "@/components/Icons3D";
 import dynamic from "next/dynamic";
@@ -13,6 +14,21 @@ const URGENCY_LEVELS = ["URGENT", "HIGH PRIORITY", "NORMAL"];
 
 export default function CreateBloodRequestPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push("/login");
+      } else if (user.role === "pending") {
+        router.push("/select-role");
+      } else if (user.role === "donor") {
+        router.push("/donor/dashboard");
+      } else if (user.role === "attendant" && !user.profile_completed) {
+        router.push("/register/attendant");
+      }
+    }
+  }, [user, authLoading, router]);
 
   // Patient Info
   const [patientRef, setPatientRef] = useState("");

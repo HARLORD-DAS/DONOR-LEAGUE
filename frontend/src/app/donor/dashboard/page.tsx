@@ -44,12 +44,22 @@ export default function DonorDashboardPage() {
   };
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push("/login");
-    } else if (user && user.role === "donor") {
-      fetchData();
+    if (!authLoading) {
+      if (!user) {
+        router.push("/login");
+      } else if (user.role === "pending") {
+        router.push("/select-role");
+      } else if (user.role === "attendant") {
+        router.push("/attendant/dashboard");
+      } else if (user.role === "donor") {
+        if (!user.profile_completed) {
+          router.push("/register/donor");
+        } else {
+          fetchData();
+        }
+      }
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, router]);
 
   const handleRespond = async (requestId: number, action: "ACCEPTED" | "DECLINED") => {
     try {

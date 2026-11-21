@@ -34,12 +34,22 @@ export default function AttendantDashboardPage() {
   };
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push("/login");
-    } else if (user && user.role === "attendant") {
-      fetchData();
+    if (!authLoading) {
+      if (!user) {
+        router.push("/login");
+      } else if (user.role === "pending") {
+        router.push("/select-role");
+      } else if (user.role === "donor") {
+        router.push("/donor/dashboard");
+      } else if (user.role === "attendant") {
+        if (!user.profile_completed) {
+          router.push("/register/attendant");
+        } else {
+          fetchData();
+        }
+      }
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, router]);
 
   if (authLoading || (!user && loading)) {
     return <div className="p-12 text-center text-sm font-medium">Loading Attendant Dashboard...</div>;

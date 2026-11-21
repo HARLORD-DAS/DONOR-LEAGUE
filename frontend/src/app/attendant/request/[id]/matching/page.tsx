@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/lib/api";
 import { Hospital3D, BloodDrop3D, WhatsApp3D, Compass3D } from "@/components/Icons3D";
 import dynamic from "next/dynamic";
@@ -11,6 +12,7 @@ const InteractiveMap = dynamic(() => import("@/components/Map"), { ssr: false })
 export default function AutomaticDonorMatchingPage() {
   const params = useParams();
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const requestId = params.id as string;
 
   const [matchingData, setMatchingData] = useState<any>(null);
@@ -18,6 +20,20 @@ export default function AutomaticDonorMatchingPage() {
   const [loading, setLoading] = useState(true);
   const [expanding, setExpanding] = useState(false);
   const [selectedRadius, setSelectedRadius] = useState<number>(5);
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push("/login");
+      } else if (user.role === "pending") {
+        router.push("/select-role");
+      } else if (user.role === "donor") {
+        router.push("/donor/dashboard");
+      } else if (user.role === "attendant" && !user.profile_completed) {
+        router.push("/register/attendant");
+      }
+    }
+  }, [user, authLoading, router]);
 
   const fetchMatches = async () => {
     try {
@@ -37,8 +53,10 @@ export default function AutomaticDonorMatchingPage() {
   };
 
   useEffect(() => {
-    if (requestId) fetchMatches();
-  }, [requestId]);
+    if (requestId && user && user.role === "attendant" && user.profile_completed) {
+      fetchMatches();
+    }
+  }, [requestId, user]);
 
   const handleExpandRadius = async (newRadiusKm: number) => {
     try {

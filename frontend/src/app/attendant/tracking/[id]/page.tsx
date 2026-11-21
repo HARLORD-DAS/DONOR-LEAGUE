@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/lib/api";
 import { Hospital3D, Success3D, Compass3D } from "@/components/Icons3D";
 
@@ -24,11 +25,26 @@ const STAGES = [
 export default function RequestTrackingPage() {
   const params = useParams();
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const requestId = params.id as string;
 
   const [requestDetails, setRequestDetails] = useState<any>(null);
   const [trackingSteps, setTrackingSteps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push("/login");
+      } else if (user.role === "pending") {
+        router.push("/select-role");
+      } else if (user.role === "donor") {
+        router.push("/donor/dashboard");
+      } else if (user.role === "attendant" && !user.profile_completed) {
+        router.push("/register/attendant");
+      }
+    }
+  }, [user, authLoading, router]);
 
   const fetchTracking = async () => {
     try {
@@ -47,10 +63,12 @@ export default function RequestTrackingPage() {
   };
 
   useEffect(() => {
-    if (requestId) fetchTracking();
-    const interval = setInterval(fetchTracking, 6000); // Poll live updates every 6s
-    return () => clearInterval(interval);
-  }, [requestId]);
+    if (requestId && user && user.role === "attendant" && user.profile_completed) {
+      fetchTracking();
+      const interval = setInterval(fetchTracking, 6000); // Poll live updates every 6s
+      return () => clearInterval(interval);
+    }
+  }, [requestId, user]);
 
   if (loading && !requestDetails) {
     return <div className="p-12 text-center text-sm font-medium">Loading tracking timeline...</div>;

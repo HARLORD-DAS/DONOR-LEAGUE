@@ -8,9 +8,42 @@ class Token(BaseModel):
     token_type: str = "bearer"
     role: str
     user_id: int
-    profile_id: int
+    profile_id: int = 0
     name: str
-    identifier: str  # donor_id or attendant_id
+    identifier: str = ""  # donor_id or attendant_id
+    profile_completed: bool = False
+
+class SignUpRequest(BaseModel):
+    full_name: str = Field(..., min_length=2, max_length=150)
+    mobile_number: str = Field(..., min_length=8, max_length=20)
+    email: EmailStr
+    password: str = Field(..., min_length=6)
+    confirm_password: str = Field(..., min_length=6)
+
+class SelectRoleRequest(BaseModel):
+    role: str = Field(..., pattern=r"^(donor|attendant)$")
+
+class DonorProfileCompletionRequest(BaseModel):
+    date_of_birth: str
+    gender: Optional[str] = None
+    blood_group: str = Field(..., pattern=r"^(A|B|AB|O)[+-]$")
+    state: str
+    district: str
+    city: str
+    area: Optional[str] = None
+    residential_address: str
+    latitude: float
+    longitude: float
+    location_accuracy: Optional[float] = None
+    location_source: Optional[str] = "osm_geocode"
+    whatsapp_consent: bool = True
+    sms_consent: bool = True
+    terms_consent: bool = True
+
+class AttendantProfileCompletionRequest(BaseModel):
+    city: str
+    state: str
+    terms_consent: bool = True
 
 class LoginRequest(BaseModel):
     email_or_phone: str

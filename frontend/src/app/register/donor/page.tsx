@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/lib/api";
-import { BloodDrop3D, MapPin3D } from "@/components/Icons3D";
+import { BloodDrop3D } from "@/components/Icons3D";
 import dynamic from "next/dynamic";
 
 const InteractiveMap = dynamic(() => import("@/components/Map"), { ssr: false });
@@ -13,16 +13,26 @@ const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
 export default function DonorRegistrationPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { user, loading: authLoading, refreshUser } = useAuth();
 
-  // Form State
-  const [fullName, setFullName] = useState("");
+  // Route protection
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push("/login");
+      } else if (user.role === "pending") {
+        router.push("/select-role");
+      } else if (user.role === "attendant") {
+        router.push("/attendant/dashboard");
+      } else if (user.role === "donor" && user.profile_completed) {
+        router.push("/donor/dashboard");
+      }
+    }
+  }, [user, authLoading, router]);
+
+  // Donor-specific form state (account credentials retrieved automatically from user)
   const [dob, setDob] = useState("");
   const [gender, setGender] = useState("Prefer not to say");
-  const [mobileNumber, setMobileNumber] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [bloodGroup, setBloodGroup] = useState("O+");
 
   // Location State
@@ -88,7 +98,7 @@ export default function DonorRegistrationPage() {
         setLongitude(pos.coords.longitude);
         setLocationSource("gps");
       },
-      (err) => {
+      () => {
         alert("GPS detection permission denied or unavailable.");
       }
     );
@@ -104,13 +114,13 @@ export default function DonorRegistrationPage() {
     e.preventDefault();
     setError(null);
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+    if (!dob) {
+      setError("Please provide your date of birth.");
       return;
     }
 
     if (!termsConsent) {
-      setError("Please accept the terms and privacy consent.");
+      setError("Please accept the terms and privacy consent to proceed.");
       return;
     }
 
@@ -118,13 +128,8 @@ export default function DonorRegistrationPage() {
 
     try {
       const payload = {
-        full_name: fullName,
         date_of_birth: dob,
         gender,
-        mobile_number: mobileNumber,
-        email,
-        password,
-        confirm_password: confirmPassword,
         blood_group: bloodGroup,
         state,
         district,
@@ -139,16 +144,16 @@ export default function DonorRegistrationPage() {
         terms_consent: termsConsent,
       };
 
-      const res = await apiRequest("/auth/register/donor", {
+      const res = await apiRequest("/auth/complete-profile/donor", {
         method: "POST",
         body: JSON.stringify(payload),
       });
 
-      await login(res);
+      await refreshUser();
 
       // Redirect to confirmed Successful Registration screen
       router.push(
-        `/register/donor/success?id=${encodeURIComponent(res.identifier)}&name=${encodeURIComponent(fullName)}&blood=${encodeURIComponent(bloodGroup)}&city=${encodeURIComponent(city)}`
+        `/register/donor/success?id=${encodeURIComponent(res.identifier)}&name=${encodeURIComponent(user?.full_name || "")}&blood=${encodeURIComponent(bloodGroup)}&city=${encodeURIComponent(city)}`
       );
     } catch (err: any) {
       setError(err.message || "Donor registration failed. Please try again.");
@@ -157,17 +162,26 @@ export default function DonorRegistrationPage() {
     }
   };
 
+  if (authLoading || !user) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-slate-500 font-medium text-sm">Loading donor registration...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">
       <div className="bg-white rounded-3xl p-6 sm:p-10 border border-brand-border shadow-elevated">
+        {/* Header */}
         <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100">
           <BloodDrop3D size={52} />
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-brand-navy tracking-tight">
-              Donor Registration
+              Complete Donor Profile
             </h1>
             <p className="text-xs text-slate-500 mt-1">
-              Join the geographical donor network and receive alerts for nearby matching emergencies.
+              Provide your medical and location details to receive urgent blood request notifications in your vicinity.
             </p>
           </div>
         </div>
@@ -179,30 +193,42 @@ export default function DonorRegistrationPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Section 1: Personal & Account */}
+          {/* Section 1: Authenticated Account Summary (No re-entering credentials) */}
+          <div className="bg-brand-bg rounded-2xl p-5 border border-brand-border">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-brand-primary mb-3">
+              1. Verified Account Information
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <span className="block text-[11px] font-semibold text-slate-400 uppercase">Full Name</span>
+                <span className="text-sm font-bold text-brand-navy">{user.full_name}</span>
+              </div>
+              <div>
+                <span className="block text-[11px] font-semibold text-slate-400 uppercase">Mobile Number</span>
+                <span className="text-sm font-bold text-brand-navy">{user.phone}</span>
+              </div>
+              <div>
+                <span className="block text-[11px] font-semibold text-slate-400 uppercase">Email Address</span>
+                <span className="text-sm font-bold text-brand-navy">{user.email}</span>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-3 pt-3 border-t border-slate-200/60">
+              Account credentials securely linked. You do not need to re-enter your password.
+            </p>
+          </div>
+
+          {/* Section 2: Donor Specific Information */}
           <div>
             <h2 className="text-sm font-bold uppercase tracking-wider text-brand-primary mb-4">
-              1. Personal & Authentication
+              2. Blood Group & Medical Eligibility
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Rahul Sharma"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-brand-border text-sm outline-none focus:border-brand-primary"
-                />
-              </div>
-
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Blood Group *</label>
                 <select
                   value={bloodGroup}
                   onChange={(e) => setBloodGroup(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-brand-border text-sm outline-none focus:border-brand-primary font-bold text-red-600"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-brand-border text-sm outline-none focus:border-brand-primary font-bold text-red-600 bg-white"
                 >
                   {BLOOD_GROUPS.map((bg) => (
                     <option key={bg} value={bg}>{bg}</option>
@@ -226,7 +252,7 @@ export default function DonorRegistrationPage() {
                 <select
                   value={gender}
                   onChange={(e) => setGender(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-brand-border text-sm outline-none focus:border-brand-primary"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-brand-border text-sm outline-none focus:border-brand-primary bg-white"
                 >
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
@@ -234,66 +260,18 @@ export default function DonorRegistrationPage() {
                   <option value="Prefer not to say">Prefer not to say</option>
                 </select>
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Mobile Number (with WhatsApp) *</label>
-                <input
-                  type="tel"
-                  required
-                  value={mobileNumber}
-                  onChange={(e) => setMobileNumber(e.target.value)}
-                  placeholder="+91 98765 43210"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-brand-border text-sm outline-none focus:border-brand-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Email Address *</label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="rahul@example.com"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-brand-border text-sm outline-none focus:border-brand-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Password *</label>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Minimum 6 characters"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-brand-border text-sm outline-none focus:border-brand-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Confirm Password *</label>
-                <input
-                  type="password"
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm password"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-brand-border text-sm outline-none focus:border-brand-primary"
-                />
-              </div>
             </div>
           </div>
 
-          {/* Section 2: Location & OpenStreetMap */}
+          {/* Section 3: Location & OpenStreetMap */}
           <div className="pt-6 border-t border-slate-100">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
               <div>
                 <h2 className="text-sm font-bold uppercase tracking-wider text-brand-primary">
-                  2. Geographical Location & Privacy
+                  3. Geographical Location &amp; Privacy
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Your coordinates are used strictly for proximity calculations. Exact home addresses are never revealed to attendants.
+                  Your coordinates are used strictly for proximity calculations. Exact residential addresses are never revealed to attendants.
                 </p>
               </div>
               <button
@@ -415,10 +393,10 @@ export default function DonorRegistrationPage() {
             </div>
           </div>
 
-          {/* Section 3: Consents */}
+          {/* Section 4: Consents */}
           <div className="pt-6 border-t border-slate-100 space-y-3">
             <h2 className="text-sm font-bold uppercase tracking-wider text-brand-primary mb-2">
-              3. Notifications & Consent
+              4. Notifications &amp; Consent
             </h2>
 
             <label className="flex items-start gap-3 cursor-pointer">
@@ -464,7 +442,7 @@ export default function DonorRegistrationPage() {
             disabled={loading}
             className="w-full py-4 px-6 rounded-2xl bg-brand-primary text-white font-bold shadow-3d hover:bg-brand-secondary transition-all disabled:opacity-60 text-base"
           >
-            {loading ? "Registering & Persisting Profile..." : "Complete Donor Registration"}
+            {loading ? "Registering & Persisting Donor Profile..." : "Complete Donor Registration"}
           </button>
         </form>
       </div>

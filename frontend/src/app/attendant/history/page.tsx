@@ -2,14 +2,30 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/lib/api";
 import { Hospital3D, Success3D } from "@/components/Icons3D";
 
 export default function AttendantHistoryPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push("/login");
+      } else if (user.role === "pending") {
+        router.push("/select-role");
+      } else if (user.role === "donor") {
+        router.push("/donor/dashboard");
+      } else if (user.role === "attendant" && !user.profile_completed) {
+        router.push("/register/attendant");
+      }
+    }
+  }, [user, authLoading, router]);
 
   const fetchHistory = async () => {
     try {
@@ -24,8 +40,10 @@ export default function AttendantHistoryPage() {
   };
 
   useEffect(() => {
-    fetchHistory();
-  }, []);
+    if (user && user.role === "attendant" && user.profile_completed) {
+      fetchHistory();
+    }
+  }, [user]);
 
   const handleConfirmFulfillment = async (requestId: number, requestCode: string) => {
     const ok = window.confirm(`Confirm that blood donation for ${requestCode} has been successfully completed at the hospital?`);
