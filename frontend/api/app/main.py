@@ -162,12 +162,13 @@ async def seed_initial_donors():
 
         await session.commit()
 
+from fastapi.responses import JSONResponse
+import traceback
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize DB schema
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    await seed_initial_donors()
+    from app.core.database import ensure_db
+    await ensure_db()
     yield
     await engine.dispose()
 
@@ -177,6 +178,15 @@ app = FastAPI(
     description="Location-Based Blood Donor Identification & Coordination Platform",
     lifespan=lifespan
 )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    print("Unhandled Server Error:", exc)
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal Server Error: {str(exc)}"}
+    )
 
 # CORS configuration
 app.add_middleware(
