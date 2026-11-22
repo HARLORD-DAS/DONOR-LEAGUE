@@ -20,14 +20,20 @@ AsyncSessionLocal = async_sessionmaker(
 
 Base = declarative_base()
 _initialized = False
-_init_lock = asyncio.Lock()
+_init_lock = None
+
+def _get_init_lock():
+    global _init_lock
+    if _init_lock is None:
+        _init_lock = asyncio.Lock()
+    return _init_lock
 
 async def ensure_db():
     global _initialized
     if _initialized:
         return
 
-    async with _init_lock:
+    async with _get_init_lock():
         if _initialized:
             return
 

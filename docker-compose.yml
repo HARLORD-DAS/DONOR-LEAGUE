@@ -1,0 +1,33 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: donor_league_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./donor_league.db
+      - SECRET_KEY=donor-league-production-secret-change-if-needed
+      - APP_BASE_URL=http://localhost:3000
+      - FRONTEND_ORIGIN=*
+      - SEED_DEMO_DATA=true
+      - WHATSAPP_SIMULATION_MODE=true
+      - SMS_SIMULATION_MODE=true
+    volumes:
+      - backend_data:/app
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: donor_league_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+    depends_on:
+      - backend
+
+volumes:
+  backend_data:

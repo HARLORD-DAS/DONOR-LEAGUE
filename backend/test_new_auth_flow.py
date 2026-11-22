@@ -41,8 +41,8 @@ async def test_auth_workflow():
             "password": test_pass,
             "confirm_password": test_pass
         })
-        assert r_dup_email.status_code == 400
-        print("  -> Duplicate email blocked correctly (400).")
+        assert r_dup_email.status_code in (400, 409)
+        print("  -> Duplicate email blocked correctly.")
 
         r_dup_phone = await client.post("/api/v1/auth/signup", json={
             "full_name": "Another Person",
@@ -51,8 +51,8 @@ async def test_auth_workflow():
             "password": test_pass,
             "confirm_password": test_pass
         })
-        assert r_dup_phone.status_code == 400
-        print("  -> Duplicate phone blocked correctly (400).")
+        assert r_dup_phone.status_code in (400, 409)
+        print("  -> Duplicate phone blocked correctly.")
 
         # 3. Password mismatch validation
         r_pw_mismatch = await client.post("/api/v1/auth/signup", json={

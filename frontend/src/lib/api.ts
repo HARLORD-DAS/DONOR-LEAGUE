@@ -13,10 +13,8 @@ function getApiBase(): string {
     return "http://127.0.0.1:8000/api/v1";
   }
 
-  // Do not silently send production requests to a nonexistent same-origin API.
-  throw new Error(
-    "The backend API is not configured. Set NEXT_PUBLIC_API_URL to your deployed API base URL (including /api/v1) in Vercel."
-  );
+  // Default to deployed Render backend API
+  return "https://donor-league-api.onrender.com/api/v1";
 }
 
 export async function apiRequest<T = any>(
@@ -41,12 +39,17 @@ export async function apiRequest<T = any>(
   });
 
   if (!res.ok) {
-    let errorDetail = "An unexpected error occurred";
+    let errorDetail = "";
     try {
       const errorJson = await res.json();
       errorDetail = errorJson.detail || errorJson.message || JSON.stringify(errorJson);
     } catch {
-      errorDetail = `Request failed with status ${res.status}: ${res.statusText}`;
+      try {
+        const text = await res.text();
+        errorDetail = text || `Request failed with status ${res.status}: ${res.statusText}`;
+      } catch {
+        errorDetail = `Request failed with status ${res.status}: ${res.statusText}`;
+      }
     }
     throw new Error(errorDetail);
   }

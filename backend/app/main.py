@@ -14,6 +14,9 @@ from app.api.notifications import router as notifications_router
 from app.api.osm_geo import router as osm_geo_router
 from app.api.websocket import router as ws_router
 
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi.exceptions import RequestValidationError
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.core.database import ensure_db
@@ -28,19 +31,43 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors()}
+    )
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     print("Unhandled Server Error:", exc)
     traceback.print_exc()
-    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+    return JSONResponse(status_code=500, content={"detail": f"Internal server error: {str(exc)}"})
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[settings.FRONTEND_ORIGIN, "http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+cors_origins = [o for o in [settings.FRONTEND_ORIGIN, "http://localhost:3000", "http://127.0.0.1:3000"] if o]
+if not settings.FRONTEND_ORIGIN or settings.FRONTEND_ORIGIN == "*":
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"https?://.*",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 app.include_router(auth_router, prefix=settings.API_V1_STR)
 app.include_router(donors_router, prefix=settings.API_V1_STR)

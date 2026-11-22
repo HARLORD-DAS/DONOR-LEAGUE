@@ -1,6 +1,18 @@
 import os
 from pydantic_settings import BaseSettings
 
+def normalize_database_url(url: str) -> str:
+    if not url or url.strip() in ("", "sqlite+aiosqlite:///./donor_league.db"):
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        db_path = os.path.join(base_dir, "donor_league.db").replace("\\", "/")
+        return f"sqlite+aiosqlite:///{db_path}"
+    clean = url.strip()
+    if clean.startswith("postgres://"):
+        return clean.replace("postgres://", "postgresql+asyncpg://", 1)
+    if clean.startswith("postgresql://") and not clean.startswith("postgresql+asyncpg://"):
+        return clean.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return clean
+
 class Settings(BaseSettings):
     PROJECT_NAME: str = "DONOR LEAGUE"
     VERSION: str = "1.0.0"
@@ -9,7 +21,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
 
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./donor_league.db")
+    DATABASE_URL: str = normalize_database_url(os.getenv("DATABASE_URL", ""))
 
     NOMINATIM_BASE_URL: str = os.getenv("NOMINATIM_BASE_URL", "https://nominatim.openstreetmap.org")
     NOMINATIM_USER_AGENT: str = os.getenv("NOMINATIM_USER_AGENT", "DonorLeagueApp/1.0")
