@@ -1,4 +1,3 @@
-import os
 import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
@@ -8,7 +7,7 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
     future=True,
-    connect_args={"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {}
+    connect_args={"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {},
 )
 
 AsyncSessionLocal = async_sessionmaker(
@@ -16,32 +15,34 @@ AsyncSessionLocal = async_sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False,
     autocommit=False,
-    autoflush=False
+    autoflush=False,
 )
 
 Base = declarative_base()
-
 _initialized = False
 _init_lock = asyncio.Lock()
 
 async def ensure_db():
     global _initialized
-    if not _initialized:
-        async with _init_lock:
-            if not _initialized:
-                # Import models module so all models are registered on Base
-                import app.models.models
-                async with engine.begin() as conn:
-                    await conn.run_sync(Base.metadata.create_all)
-                
-                async with AsyncSessionLocal() as session:
-                    try:
-                        from app.core.seed import seed_initial_donors_data
-                        await seed_initial_donors_data(session)
-                    except Exception as e:
-                        print(f"Seed error: {e}")
-                
-                _initialized = True
+    if _initialized:
+        return
+
+    async with _init_lock:
+        if _initialized:
+            return
+
+        import app.models.models  # Register all models on Base.
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+        # Demo accounts use published sample credentials. Never seed them in
+        # production unless the operator explicitly opts in.
+        if settings.SEED_DEMO_DATA:
+            async with AsyncSessionLocal() as session:
+                from app.core.seed import seed_initial_donors_data
+                await seed_initial_donors_data(session)
+
+        _initialized = True
 
 async def get_db():
     await ensure_db()
