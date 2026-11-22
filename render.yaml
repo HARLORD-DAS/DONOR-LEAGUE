@@ -1,0 +1,32 @@
+databases:
+  - name: donor-league-db
+    databaseName: donor_league
+    user: donor_league
+    plan: basic-256mb
+
+services:
+  - type: web
+    name: donor-league-api
+    runtime: python
+    plan: starter
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: donor-league-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+      - key: SEED_DEMO_DATA
+        value: "false"
+      - key: WHATSAPP_SIMULATION_MODE
+        value: "true"
+      - key: SMS_SIMULATION_MODE
+        value: "true"
