@@ -1,14 +1,22 @@
 function getApiBase(): string {
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
+  const configuredUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/+$/, "");
   }
-  // On deployed domains (HTTPS or non-localhost), use relative path to route through Vercel
-  if (typeof window !== "undefined") {
-    if (window.location.protocol === "https:" || (!window.location.hostname.includes("localhost") && window.location.hostname !== "127.0.0.1")) {
-      return "/api/v1";
-    }
+
+  // Local development uses the separately running FastAPI service.
+  if (
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1")
+  ) {
+    return "http://127.0.0.1:8000/api/v1";
   }
-  return "http://127.0.0.1:8000/api/v1";
+
+  // Do not silently send production requests to a nonexistent same-origin API.
+  throw new Error(
+    "The backend API is not configured. Set NEXT_PUBLIC_API_URL to your deployed API base URL (including /api/v1) in Vercel."
+  );
 }
 
 export async function apiRequest<T = any>(
@@ -27,8 +35,7 @@ export async function apiRequest<T = any>(
 
   const base = getApiBase();
   const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
-  const url = `${base}${cleanEndpoint}`;
-  const res = await fetch(url, {
+  const res = await fetch(`${base}${cleanEndpoint}`, {
     ...options,
     headers,
   });
@@ -44,5 +51,6 @@ export async function apiRequest<T = any>(
     throw new Error(errorDetail);
   }
 
+  if (res.status === 204) return undefined as T;
   return res.json();
 }

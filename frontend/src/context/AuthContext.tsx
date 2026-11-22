@@ -39,19 +39,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchProfile = async (): Promise<AuthUser | null> => {
     try {
       const data = await apiRequest("/auth/me");
-      const identifier = data.role === "donor" 
-        ? data.donor_profile?.donor_id 
-        : (data.role === "attendant" ? data.attendant_profile?.attendant_id : "");
-      
+      const identifier = data.role === "donor"
+        ? data.donor_profile?.donor_id
+        : data.role === "attendant" ? data.attendant_profile?.attendant_id : "";
+
       const updatedUser: AuthUser = {
         ...data,
         identifier: identifier || "",
-        profile_completed: Boolean(data.profile_completed)
+        profile_completed: Boolean(data.profile_completed),
       };
       setUser(updatedUser);
       return updatedUser;
     } catch (err) {
-      console.error("Failed to load profile", err);
+      console.error("Failed to load authenticated profile", err);
       logout();
       return null;
     } finally {
@@ -63,17 +63,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const savedToken = localStorage.getItem("token");
     if (savedToken) {
       setToken(savedToken);
-      fetchProfile();
+      void fetchProfile();
     } else {
       setLoading(false);
     }
+    // Run once when the provider mounts to restore the persisted session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const login = async (tokenData: any): Promise<AuthUser> => {
+    if (!tokenData?.access_token) {
+      throw new Error("Authentication succeeded without an access token. Please try again.");
+    }
+
     localStorage.setItem("token", tokenData.access_token);
     setToken(tokenData.access_token);
     const updated = await fetchProfile();
-    return updated!;
+    if (!updated) {
+      throw new Error("Your account was created, but we could not load your profile. Please sign in again.");
+    }
+    return updated;
   };
 
   const logout = () => {
@@ -83,9 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push("/login");
   };
 
-  const refreshUser = async (): Promise<AuthUser | null> => {
-    return await fetchProfile();
-  };
+  const refreshUser = async (): Promise<AuthUser | null> => fetchProfile();
 
   const selectRole = async (role: "donor" | "attendant") => {
     const res = await apiRequest("/auth/select-role", {
@@ -104,19 +111,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const getPostAuthRedirect = (customUser?: AuthUser | null): string => {
     const targetUser = customUser !== undefined ? customUser : user;
     if (!targetUser) return "/login";
-    
-    if (targetUser.role === "pending") {
-      return "/select-role";
-    }
-
+    if (targetUser.role === "pending") return "/select-role";
     if (targetUser.role === "donor") {
       return targetUser.profile_completed ? "/donor/dashboard" : "/register/donor";
     }
-
     if (targetUser.role === "attendant") {
       return targetUser.profile_completed ? "/attendant/dashboard" : "/register/attendant";
     }
-
     return "/";
   };
 
@@ -129,7 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout,
       refreshUser,
       selectRole,
-      getPostAuthRedirect
+      getPostAuthRedirect,
     }}>
       {children}
     </AuthContext.Provider>

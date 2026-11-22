@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 import random
+import logging
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -14,6 +16,7 @@ from app.schemas.schemas import (
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+logger = logging.getLogger(__name__)
 
 def generate_id(prefix: str) -> str:
     year = datetime.now(timezone.utc).year
@@ -51,36 +54,46 @@ async def get_current_user(
 async def signup(data: SignUpRequest, db: AsyncSession = Depends(get_db)):
     if data.password != data.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
-    
     if len(data.password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
 
-    clean_email = data.email.lower().strip()
+    clean_email = str(data.email).lower().strip()
     clean_phone = data.mobile_number.strip().replace(" ", "").replace("-", "")
 
-    # Check unique email
-    stmt = select(User).where(User.email == clean_email)
-    existing_email = (await db.execute(stmt)).scalars().first()
+    existing_email = (await db.execute(select(User).where(User.email == clean_email))).scalars().first()
     if existing_email:
-        raise HTTPException(status_code=400, detail="An account with this email address already exists")
-
-    # Check unique phone
-    stmt = select(User).where(User.phone == clean_phone)
-    existing_phone = (await db.execute(stmt)).scalars().first()
+        raise HTTPException(status_code=409, detail="An account with this email address already exists")
+    existing_phone = (await db.execute(select(User).where(User.phone == clean_phone))).scalars().first()
     if existing_phone:
-        raise HTTPException(status_code=400, detail="An account with this mobile number already exists")
+        raise HTTPException(status_code=409, detail="An account with this mobile number already exists")
 
-    user = User(
-        full_name=data.full_name.strip(),
-        email=clean_email,
-        phone=clean_phone,
-        password_hash=get_password_hash(data.password),
-        role="pending",
-        account_status="active"
-    )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
+    try:
+        user = User(
+            full_name=data.full_name.strip(),
+            email=clean_email,
+            phone=clean_phone,
+            password_hash=get_password_hash(data.password),
+            role="pending",
+            account_status="active"
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="An account with this email address or mobile number already exists") from exc
+    except (ValueError, TypeError) as exc:
+        await db.rollback()
+        logger.exception("Signup input/password processing failed")
+        raise HTTPException(status_code=422, detail="The supplied registration details could not be processed") from exc
+    except SQLAlchemyError as exc:
+        await db.rollback()
+        logger.exception("Database error while creating a DONOR LEAGUE account")
+        raise HTTPException(status_code=503, detail="Registration is temporarily unavailable because the account database could not complete the request. Please try again later.") from exc
+    except Exception as exc:
+        await db.rollback()
+        logger.exception("Unexpected error while creating a DONOR LEAGUE account")
+        raise HTTPException(status_code=500, detail="Account registration failed unexpectedly. Please contact support.") from exc
 
     token = create_access_token(subject=user.id, role="pending")
     return Token(
