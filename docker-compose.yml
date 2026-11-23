@@ -4,30 +4,49 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: donor_league_backend
+    restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=sqlite+aiosqlite:///./donor_league.db
-      - SECRET_KEY=donor-league-production-secret-change-if-needed
+      - DATABASE_URL=sqlite+aiosqlite:////data/donor_league.db
+      - SECRET_KEY=donor-league-local-dev-secret-key-2026
       - APP_BASE_URL=http://localhost:3000
-      - FRONTEND_ORIGIN=*
+      - FRONTEND_ORIGIN=http://localhost:3000
       - SEED_DEMO_DATA=true
       - WHATSAPP_SIMULATION_MODE=true
       - SMS_SIMULATION_MODE=true
     volumes:
-      - backend_data:/app
+      - backend_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - donor_league_network
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
     container_name: donor_league_frontend
+    restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    networks:
+      - donor_league_network
 
 volumes:
   backend_data:
+
+networks:
+  donor_league_network:
+    driver: bridge

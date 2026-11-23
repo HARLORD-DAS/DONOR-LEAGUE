@@ -21,11 +21,17 @@ AsyncSessionLocal = async_sessionmaker(
 Base = declarative_base()
 _initialized = False
 _init_lock = None
+_init_loop = None
 
 def _get_init_lock():
-    global _init_lock
-    if _init_lock is None:
+    global _init_lock, _init_loop
+    try:
+        current_loop = asyncio.get_running_loop()
+    except RuntimeError:
+        current_loop = None
+    if _init_lock is None or _init_loop != current_loop:
         _init_lock = asyncio.Lock()
+        _init_loop = current_loop
     return _init_lock
 
 async def ensure_db():
@@ -36,6 +42,18 @@ async def ensure_db():
     async with _get_init_lock():
         if _initialized:
             return
+
+        if "sqlite" in settings.DATABASE_URL:
+            try:
+                import os
+                from sqlalchemy.engine.url import make_url
+                url_obj = make_url(settings.DATABASE_URL)
+                if url_obj.database and url_obj.database != ":memory:":
+                    db_dir = os.path.dirname(os.path.abspath(url_obj.database))
+                    if db_dir:
+                        os.makedirs(db_dir, exist_ok=True)
+            except Exception:
+                pass
 
         import app.models.models  # Register all models on Base.
         async with engine.begin() as conn:

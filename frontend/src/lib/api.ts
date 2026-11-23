@@ -4,13 +4,13 @@ function getApiBase(): string {
     return configuredUrl.replace(/\/+$/, "");
   }
 
-  // Local development uses the separately running FastAPI service.
+  // Local development uses the browser-accessible FastAPI service.
   if (
     typeof window !== "undefined" &&
     (window.location.hostname === "localhost" ||
       window.location.hostname === "127.0.0.1")
   ) {
-    return "http://127.0.0.1:8000/api/v1";
+    return "http://localhost:8000/api/v1";
   }
 
   // Default to deployed Render backend API

@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
+from app.core.config import settings
 from app.models.models import BloodRequest, DonorMatch, DonorProfile, User
 from app.schemas.schemas import MatchingResultsOut, MatchingDonorOut
 
@@ -67,7 +68,7 @@ async def get_request_matches(request_id: int, db: AsyncSession = Depends(get_db
                     approx_latitude=fuzzed_lat,
                     approx_longitude=fuzzed_lon,
                     match_status=m.match_status,
-                    notification_status="DELIVERED" if donor.whatsapp_consent or donor.sms_consent else "PENDING"
+                    notification_status="SIMULATED" if (settings.WHATSAPP_SIMULATION_MODE or settings.SMS_SIMULATION_MODE) else ("DELIVERED" if (donor.whatsapp_consent or donor.sms_consent) else "PENDING")
                 )
             )
 

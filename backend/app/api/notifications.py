@@ -47,8 +47,8 @@ class NotificationService:
         error_msg = None
 
         if settings.WHATSAPP_SIMULATION_MODE or not settings.WHATSAPP_API_TOKEN:
-            # Development Simulation Mode
-            status = "DELIVERED"
+            # Development Simulation Mode (clearly distinguished from actual carrier delivery)
+            status = "SIMULATED"
             provider_ref = f"SIM-WA-{uuid.uuid4().hex[:10].upper()}"
         else:
             # Live Meta WhatsApp Business Cloud API Call
@@ -129,7 +129,7 @@ class NotificationService:
         error_msg = None
 
         if settings.SMS_SIMULATION_MODE or not settings.MSG91_AUTH_KEY:
-            status = "DELIVERED"
+            status = "SIMULATED"
             provider_ref = f"SIM-SMS-{uuid.uuid4().hex[:10].upper()}"
         else:
             url = "https://control.msg91.com/api/v5/flow/"

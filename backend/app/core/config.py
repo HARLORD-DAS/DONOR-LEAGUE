@@ -2,11 +2,15 @@ import os
 from pydantic_settings import BaseSettings
 
 def normalize_database_url(url: str) -> str:
-    if not url or url.strip() in ("", "sqlite+aiosqlite:///./donor_league.db"):
+    if not url:
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         db_path = os.path.join(base_dir, "donor_league.db").replace("\\", "/")
         return f"sqlite+aiosqlite:///{db_path}"
-    clean = url.strip()
+    clean = url.strip().strip('"').strip("'")
+    if clean in ("", "sqlite+aiosqlite:///./donor_league.db"):
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        db_path = os.path.join(base_dir, "donor_league.db").replace("\\", "/")
+        return f"sqlite+aiosqlite:///{db_path}"
     if clean.startswith("postgres://"):
         return clean.replace("postgres://", "postgresql+asyncpg://", 1)
     if clean.startswith("postgresql://") and not clean.startswith("postgresql+asyncpg://"):
@@ -46,6 +50,7 @@ class Settings(BaseSettings):
         extra = "allow"
 
 settings = Settings()
+settings.DATABASE_URL = normalize_database_url(settings.DATABASE_URL)
 
 # Render's managed PostgreSQL URL may use postgres:// or postgresql://.
 # SQLAlchemy async engine requires the asyncpg dialect.

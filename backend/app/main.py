@@ -51,23 +51,19 @@ async def global_exception_handler(request, exc):
     traceback.print_exc()
     return JSONResponse(status_code=500, content={"detail": f"Internal server error: {str(exc)}"})
 
-cors_origins = [o for o in [settings.FRONTEND_ORIGIN, "http://localhost:3000", "http://127.0.0.1:3000"] if o]
-if not settings.FRONTEND_ORIGIN or settings.FRONTEND_ORIGIN == "*":
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origin_regex=r"https?://.*",
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-else:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=cors_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+raw_origins = [o.strip() for o in settings.FRONTEND_ORIGIN.split(",") if o.strip()]
+cors_origins = set(["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8000", "http://127.0.0.1:8000"])
+for o in raw_origins:
+    if o != "*":
+        cors_origins.add(o)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=list(cors_origins),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(auth_router, prefix=settings.API_V1_STR)
 app.include_router(donors_router, prefix=settings.API_V1_STR)
